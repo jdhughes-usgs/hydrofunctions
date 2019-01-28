@@ -369,6 +369,75 @@ def extract_nwis_df(nwis_dict):
     return DF
 
 
+def extract_nwis_df2(nwis):
+    """Returns a Pandas dataframe from an NWIS response object.
+
+    Args:
+        nwis_dict (obj):
+            the json from a response object as returned by get_nwis().json().
+
+    Returns:
+        a pandas dataframe.
+
+    Raises:
+        HydroNoDataError  when the request is valid, but NWIS has no data for
+            the parameters provided in the request.
+    """
+    #nwis_dict = response_obj.json()
+    nwis_dict = nwis.json()
+
+    # strip header and all metadata.
+    ts = nwis_dict['value']['timeSeries']
+    if ts == []:
+        # raise a HydroNoDataError if NWIS returns an empty set.
+        #
+        # Ideally, an empty set exception would be raised when the request
+        # is first returned, but I do it here so that the data doesn't get
+        # extracted twice.
+        # TODO: raise this exception earlier??
+        # TODO: find a URL will result an empty set like this.
+        #
+        # ** Interactive sessions should have an error raised.
+        #
+        # **Automated systems should catch these errors and deal with them.
+        # In this case, if NWIS returns an empty set, then the request
+        # needs to be reconsidered. The request was valid somehow, but
+        # there is no data being collected.
+
+        # TODO: this if clause needs to be tested.
+        raise exceptions.HydroNoDataError("The NWIS reports that it does not"
+                                          " have any data for this request.")
+
+    # create lists of timeseries keys and noDataValues
+    keys = get_nwis_property(nwis_dict)
+    noDataValues = get_nwis_property(nwis_dict, key='noDataValue')
+
+
+    # process data for all NWIS sites
+    vals = []
+    for key in keys:
+        station = nwis.siteCodes[key]
+        parameter = nwis.parameters[key]
+        da = nwis_dict['value']['timeSeries'][key]['values'][0]['value']
+        for tdict in da:
+            v = float(tdict['value'])
+            if v == noDataValues[key]:
+                v = np.nan
+            dateTime = tdict['dateTime']
+            q = tdict['qualifiers']
+            vals.append([dateTime, station, parameter, v, ', '.join(q)])
+
+    # create simple data frame
+    columns = ['date', 'station', 'parameter', 'value', 'qualifiers']
+    dfm = pd.DataFrame(vals, columns=columns)
+    dfm.set_index([pd.DatetimeIndex(dfm['date']), 'station', 'parameter'],
+                  inplace=True)
+    dfm.drop(labels='date', axis=1, inplace=True)
+    dfm.sort_index(inplace=True)
+
+    return dfm
+
+
 def nwis_custom_status_codes(response):
     """
     Raise custom warning messages from the NWIS when it returns a

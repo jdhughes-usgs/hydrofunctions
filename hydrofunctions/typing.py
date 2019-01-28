@@ -87,6 +87,33 @@ def check_NWIS_site(input):
     # return sites
 
 
+def check_NWIS_parameterCd(input):
+    """Checks that the USGS parameterCd is valid.
+    """
+    msg = "NWIS parameterCd(s) should be a string or list of strings, \
+           Actual value: {}".format(input)
+    output = ""
+    if input is None:
+        return None
+    # assume that if it is a string it will be fine as is.
+    # don't accept a series of sites in a single string.
+    # Test for and reject empty strings: empty strings are falsy.
+    if isinstance(input, str) and input:
+        return input
+    # test for input is a list and it is not empty
+    elif isinstance(input, list) and input:
+        for s in input:
+            if isinstance(s, str) and s:
+                output = output + s + ','
+            else:
+                raise TypeError(msg + "   bad element: {}".format(s))
+        # format:  ['00060', '00065'] ==> "00060,00065"
+        # remove the last comma
+        return output[:-1]
+    else:
+        raise TypeError(msg)
+
+
 def check_NWIS_service(input):
     """Checks that the service is valid: either iv or dv"""
     if input is None:

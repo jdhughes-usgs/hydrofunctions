@@ -122,6 +122,8 @@ class NWIS(Station):
         self.json = lambda: print("You must successfully call .get_data() before calling .json().")
         self.name = None
         self.siteName = None
+        self.siteCodes = None
+        self.parameters = None
 
         # Check that site selcetion parameters are exclusive!
         if (self.site and self.stateCd) \
@@ -142,6 +144,7 @@ class NWIS(Station):
         self.service = typing.check_NWIS_service(self.service)
         self.start_date = typing.check_datestr(self.start_date)
         self.end_date = typing.check_datestr(self.end_date)
+        self.parameterCd = typing.check_NWIS_parameterCd(self.parameterCd)
         self.response = hf.get_nwis(self.site,
                                     self.service,
                                     self.start_date,
@@ -166,6 +169,8 @@ class NWIS(Station):
         # set self.df without calling it.
         self.df = lambda: hf.extract_nwis_df(self.json())
 
+        self.df2 = lambda: hf.extract_nwis_df2(self)
+
         # Another option might be to do this:
         # self.df = hf.extract_nwis_df(self.response)
         # This would make myInstance.df return a plain df.
@@ -176,5 +181,27 @@ class NWIS(Station):
         self.name = hf.get_nwis_property(self.json(),
                                          key='name',
                                          remove_duplicates=True)
+        self.siteCodes = [t[0]['value']
+                          for t in hf.get_nwis_property(self.json(),
+                                                        key='siteCode')]
+        # set option based on parameterCd statistic
+        key = 'options'
+        v = hf.get_nwis_property(self.json(), key=key)
+        options = []
+        for d in v:
+            odict = d['option'][0]
+            text = ''
+            if odict['name'] == 'Statistic':
+                text = odict['value'].lower()
+            options.append(text)
+        self.options = options
+
+        # set parameters
+        key = 'variableDescription'
+        parameters = [v.split(', ')[0].lower()
+                      for v in hf.get_nwis_property(self.json(), key=key)]
+        self.parameters = ['{} {}'.format(otext, ptext).lstrip()
+                           for otext, ptext in zip(self.options, parameters)]
+
 
         return self
